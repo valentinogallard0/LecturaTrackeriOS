@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-@main
+
 struct LecturaTrackerApp: App {
     var body: some Scene {
         WindowGroup {
