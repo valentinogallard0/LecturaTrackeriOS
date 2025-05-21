@@ -11,7 +11,7 @@ import SwiftUI
 struct BookReaderApp: App {
     var body: some Scene {
         WindowGroup {
-            LibraryView()
+            MainAppView()
         }
     }
 }
