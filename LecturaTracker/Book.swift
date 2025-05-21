@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct Book: Identifiable, Codable {
+struct Book: Identifiable, Codable, Equatable {
     var id = UUID() //Identificador único necesario para SwiftUI
     var title: String
     var author: String
@@ -17,6 +17,19 @@ struct Book: Identifiable, Codable {
     var startDate: Date?
     var finishDate: Date?
     var readingHistory: [ReadingEntry] = [] // Historial de lectura diario
+    
+    // MARK: - Equatable Conformance
+    static func == (lhs: Book, rhs: Book) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.title == rhs.title &&
+               lhs.author == rhs.author &&
+               lhs.coverImageData == rhs.coverImageData &&
+               lhs.currentPage == rhs.currentPage &&
+               lhs.totalPages == rhs.totalPages &&
+               lhs.startDate == rhs.startDate &&
+               lhs.finishDate == rhs.finishDate &&
+               lhs.readingHistory == rhs.readingHistory
+    }
     
     // Propiedades computadas (no se codifican)
     var readingProgress: Double {

@@ -8,11 +8,19 @@
 import Foundation
 
 // Estructura para cada entrada de lectura diaria
-struct ReadingEntry: Codable, Identifiable {
+struct ReadingEntry: Codable, Identifiable, Equatable {
     var id = UUID()
     var date: Date
     var pagesRead: Int
     var currentPage: Int
+    
+    // MARK: - Equatable Conformance
+    static func == (lhs: ReadingEntry, rhs: ReadingEntry) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.date == rhs.date &&
+               lhs.pagesRead == rhs.pagesRead &&
+               lhs.currentPage == rhs.currentPage
+    }
     
     // Formateadores para fechas
     static let dateFormatter: DateFormatter = {
