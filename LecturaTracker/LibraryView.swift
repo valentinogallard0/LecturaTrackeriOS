@@ -8,37 +8,104 @@
 import SwiftUI
 import PhotosUI
 
-// 1. Modificamos la estructura Book para gestionar imágenes reales
-struct Book: Identifiable {
+// 1. Modificamos la estructura Book para que sea Codable
+struct Book: Identifiable, Codable {
     var id = UUID() //Identificador único necesario para SwiftUI
     var title: String
     var author: String
-    var coverImage: UIImage? // Ahora usamos UIImage en lugar de String
+    var coverImageData: Data? // Almacenamos la imagen como Data para poder codificarla
     var currentPage: Int
     var totalPages: Int
     var startDate: Date?
     var finishDate: Date?
     
-    //Podemos calcular el progreso de lectura
+    // Propiedades computadas (no se codifican)
     var readingProgress: Double {
         guard totalPages > 0 else { return 0 }
         return Double(currentPage) / Double(totalPages)
+    }
+    
+    // Propiedad computada para acceder a la imagen
+    var coverImage: UIImage? {
+        guard let imageData = coverImageData else { return nil }
+        return UIImage(data: imageData)
+    }
+    
+    // Inicializador para crear un libro con UIImage
+    init(id: UUID = UUID(), title: String, author: String, coverImage: UIImage?, currentPage: Int, totalPages: Int, startDate: Date? = nil, finishDate: Date? = nil) {
+        self.id = id
+        self.title = title
+        self.author = author
+        self.coverImageData = coverImage?.jpegData(compressionQuality: 0.7)
+        self.currentPage = currentPage
+        self.totalPages = totalPages
+        self.startDate = startDate
+        self.finishDate = finishDate
+    }
+}
+
+// 2. Clase para gestionar el almacenamiento de datos
+class BookStore: ObservableObject {
+    @Published var books: [Book] = []
+    
+    private let booksKey = "savedBooks"
+    
+    init() {
+        loadBooks()
+    }
+    
+    func saveBooks() {
+        do {
+            let encoder = JSONEncoder()
+            let data = try encoder.encode(books)
+            UserDefaults.standard.set(data, forKey: booksKey)
+        } catch {
+            print("Error al guardar los libros: \(error.localizedDescription)")
+        }
+    }
+    
+    func loadBooks() {
+        guard let data = UserDefaults.standard.data(forKey: booksKey) else { return }
+        
+        do {
+            let decoder = JSONDecoder()
+            books = try decoder.decode([Book].self, from: data)
+        } catch {
+            print("Error al cargar los libros: \(error.localizedDescription)")
+        }
+    }
+    
+    func addBook(_ book: Book) {
+        books.append(book)
+        saveBooks()
+    }
+    
+    func updateBook(_ book: Book) {
+        if let index = books.firstIndex(where: { $0.id == book.id }) {
+            books[index] = book
+            saveBooks()
+        }
+    }
+    
+    func deleteBook(at offsets: IndexSet) {
+        books.remove(atOffsets: offsets)
+        saveBooks()
     }
 }
 
 // 2. Implementamos la vista principal
 struct LibraryView: View {
-    // Estados que necesitamos gestionar
-    @State private var books: [Book] = [] // Array vacío inicialmente
+    // Usamos el BookStore para la persistencia de datos
+    @StateObject private var bookStore = BookStore()
     @State private var searchText = ""    // Texto de búsqueda vacío
     @State private var showingAddBookSheet = false // Modal oculto inicialmente
     
     // Computamos los libros filtrados basados en la búsqueda
     var filteredBooks: [Book] {
         if searchText.isEmpty {
-            return books
+            return bookStore.books
         } else {
-            return books.filter { book in
+            return bookStore.books.filter { book in
                 book.title.localizedCaseInsensitiveContains(searchText) ||
                 book.author.localizedCaseInsensitiveContains(searchText)
             }
@@ -53,6 +120,7 @@ struct LibraryView: View {
                     ForEach(filteredBooks) { book in
                         BookRow(book: book)
                     }
+                    .onDelete(perform: deleteBooks)
                 }
                 .listStyle(PlainListStyle())
                 
@@ -79,9 +147,14 @@ struct LibraryView: View {
             .navigationTitle("Mis lecturas") //Título en la parte superior
             .searchable(text: $searchText, prompt: "Buscar Libros") //Barra de búsqueda
             .sheet(isPresented: $showingAddBookSheet) {
-                AddBookView(books: $books) //Vista para añadir el libro
+                AddBookView(bookStore: bookStore) //Vista para añadir el libro
             }
         }
+    }
+    
+    // Función para eliminar libros
+    private func deleteBooks(at offsets: IndexSet) {
+        bookStore.deleteBook(at: offsets)
     }
 }
 
@@ -155,7 +228,7 @@ struct BookRow: View {
 // 4. Modificamos AddBookView para permitir seleccionar imágenes
 struct AddBookView: View {
     @Environment(\.dismiss) private var dismiss // Para cerrar el modal
-    @Binding var books: [Book] // Referencia a la lista de libros
+    var bookStore: BookStore // Referencia al almacén de libros
     
     @State private var title = ""
     @State private var author = ""
@@ -236,7 +309,7 @@ struct AddBookView: View {
                             totalPages: pages,
                             startDate: hasStartedReading ? startDate : nil // Usamos la fecha seleccionada o nil
                         )
-                        books.append(newBook)
+                        bookStore.addBook(newBook)
                         dismiss() // Cerramos el modal
                     }
                 }
