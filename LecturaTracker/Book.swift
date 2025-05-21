@@ -16,7 +16,6 @@ struct Book: Identifiable, Codable {
     var totalPages: Int
     var startDate: Date?
     var finishDate: Date?
-    var notes: String = "" // Añadimos un campo para notas
     var readingHistory: [ReadingEntry] = [] // Historial de lectura diario
     
     // Propiedades computadas (no se codifican)
@@ -32,7 +31,7 @@ struct Book: Identifiable, Codable {
     }
     
     // Inicializador para crear un libro con UIImage
-    init(id: UUID = UUID(), title: String, author: String, coverImage: UIImage?, currentPage: Int, totalPages: Int, startDate: Date? = nil, finishDate: Date? = nil, notes: String = "", readingHistory: [ReadingEntry] = []) {
+    init(id: UUID = UUID(), title: String, author: String, coverImage: UIImage?, currentPage: Int, totalPages: Int, startDate: Date? = nil, finishDate: Date? = nil, readingHistory: [ReadingEntry] = []) {
         self.id = id
         self.title = title
         self.author = author
@@ -41,15 +40,15 @@ struct Book: Identifiable, Codable {
         self.totalPages = totalPages
         self.startDate = startDate
         self.finishDate = finishDate
-        self.notes = notes
         self.readingHistory = readingHistory
     }
     
     // Función para registrar una entrada de lectura
     mutating func addReadingEntry(date: Date, pagesRead: Int, currentPage: Int) {
-        // Si ya existe una entrada para esta fecha, la actualizamos
+        // Si ya existe una entrada para esta fecha, la actualizamos sumando las páginas
         if let index = readingHistory.firstIndex(where: { Calendar.current.isDate($0.date, inSameDayAs: date) }) {
-            readingHistory[index].pagesRead = pagesRead
+            let updatedPagesRead = readingHistory[index].pagesRead + pagesRead
+            readingHistory[index].pagesRead = updatedPagesRead
             readingHistory[index].currentPage = currentPage
         } else {
             // Si no existe, creamos una nueva
@@ -64,5 +63,10 @@ struct Book: Identifiable, Codable {
     // Función para obtener la entrada de un día específico
     func getReadingEntry(for date: Date) -> ReadingEntry? {
         return readingHistory.first { Calendar.current.isDate($0.date, inSameDayAs: date) }
+    }
+    
+    // Obtener páginas restantes
+    var pagesRemaining: Int {
+        return totalPages - currentPage
     }
 }

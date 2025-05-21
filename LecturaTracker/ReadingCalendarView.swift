@@ -16,7 +16,6 @@ struct ReadingCalendarView: View {
     @State private var calendarOffset = 0
     @State private var selectedDate = Date()
     @State private var showingEntrySheet = false
-    @State private var pagesReadToday = ""
     
     // Obtener los días a mostrar en el calendario (5 días)
     private var daysToShow: [Date] {
@@ -85,11 +84,6 @@ struct ReadingCalendarView: View {
                         Button(action: {
                             selectedDate = date
                             onEntrySelected(date)
-                            
-                            // Si es hoy y no hay entrada, permitir agregarla
-                            if Calendar.current.isDateInToday(date) && book.getReadingEntry(for: date) == nil {
-                                showingEntrySheet = true
-                            }
                         }) {
                             VStack {
                                 // Número del día
@@ -121,14 +115,14 @@ struct ReadingCalendarView: View {
             }
             .padding(.horizontal)
             
-            // Añadir lectura para hoy
-            if Calendar.current.isDateInToday(selectedDate) && book.getReadingEntry(for: selectedDate) == nil {
+            // Botón para actualizar progreso de lectura
+            if Calendar.current.isDateInToday(selectedDate) {
                 Button(action: {
                     showingEntrySheet = true
                 }) {
                     HStack {
-                        Image(systemName: "plus.circle.fill")
-                        Text("Registrar lectura de hoy")
+                        Image(systemName: "book")
+                        Text("Actualizar progreso de lectura")
                     }
                     .padding(.vertical, 8)
                     .padding(.horizontal, 16)
@@ -138,6 +132,45 @@ struct ReadingCalendarView: View {
                 }
                 .padding(.top, 5)
             }
+            
+            // Resumen del progreso
+            HStack {
+                // Páginas leídas
+                VStack {
+                    Text("\(book.currentPage)")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    Text("leídas")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                // Progreso
+                VStack {
+                    Text("\(Int((Double(book.currentPage) / Double(book.totalPages)) * 100))%")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    Text("progreso")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                // Páginas restantes
+                VStack {
+                    Text("\(book.pagesRemaining)")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    Text("restantes")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.top, 10)
+            .padding(.horizontal)
         }
         .padding()
         .background(Color.gray.opacity(0.05))

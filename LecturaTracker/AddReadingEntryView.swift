@@ -13,8 +13,17 @@ struct AddReadingEntryView: View {
     let date: Date
     let onSave: (Book) -> Void
     
-    @State private var pagesRead = ""
+    // Para elegir entre métodos de actualización
+    @State private var updateMethod = UpdateMethod.currentPage
+    @State private var currentPageInput = ""
+    @State private var pagesReadInput = ""
     @Environment(\.dismiss) private var dismiss
+    
+    // Tipos de actualización para la lectura
+    enum UpdateMethod {
+        case currentPage
+        case pagesRead
+    }
     
     var formattedDate: String {
         let formatter = DateFormatter()
@@ -31,15 +40,55 @@ struct AddReadingEntryView: View {
                     
                     LabeledContent("Página actual", value: "\(book.currentPage)")
                     
-                    TextField("Páginas leídas hoy", text: $pagesRead)
-                        .keyboardType(.numberPad)
+                    LabeledContent("Páginas restantes", value: "\(book.pagesRemaining)")
+                    
+                    Picker("Método de actualización", selection: $updateMethod) {
+                        Text("Indicar página actual").tag(UpdateMethod.currentPage)
+                        Text("Indicar páginas leídas").tag(UpdateMethod.pagesRead)
+                    }
+                    .pickerStyle(SegmentedPickerStyle())
+                    .padding(.vertical, 8)
+                    
+                    if updateMethod == .currentPage {
+                        HStack {
+                            Text("Llegué hasta la página:")
+                            Spacer()
+                            TextField("Página", text: $currentPageInput)
+                                .keyboardType(.numberPad)
+                                .multilineTextAlignment(.trailing)
+                                .frame(width: 80)
+                        }
+                    } else {
+                        HStack {
+                            Text("Leí hoy:")
+                            Spacer()
+                            TextField("Páginas", text: $pagesReadInput)
+                                .keyboardType(.numberPad)
+                                .multilineTextAlignment(.trailing)
+                                .frame(width: 80)
+                            Text("páginas")
+                        }
+                    }
                 }
                 
-                Section(footer: Text("Este registro actualizará tu progreso actual de lectura.")) {
-                    Button("Guardar registro") {
-                        saveEntry()
+                Section(footer: Text("Tus lecturas se guardarán en el historial diario.")) {
+                    Button(action: saveEntry) {
+                        HStack {
+                            Spacer()
+                            Text("Guardar progreso de lectura")
+                                .fontWeight(.medium)
+                            Spacer()
+                        }
                     }
-                    .disabled(pagesRead.isEmpty || Int(pagesRead) == 0)
+                    .disabled(!isInputValid)
+                }
+                
+                // Mostrar el historial del día si ya existe
+                if let entry = book.getReadingEntry(for: date) {
+                    Section(header: Text("Ya has leído hoy")) {
+                        LabeledContent("Total de páginas leídas hoy", value: "\(entry.pagesRead)")
+                        LabeledContent("Llegaste hasta la página", value: "\(entry.currentPage)")
+                    }
                 }
             }
             .navigationTitle("Registrar lectura")
@@ -48,18 +97,45 @@ struct AddReadingEntryView: View {
                     dismiss()
                 }
             )
+            .onAppear {
+                // Inicializar con la página actual
+                currentPageInput = "\(book.currentPage)"
+            }
+        }
+    }
+    
+    // Validación de entrada
+    private var isInputValid: Bool {
+        if updateMethod == .currentPage {
+            guard let pageNum = Int(currentPageInput) else { return false }
+            return pageNum > book.currentPage && pageNum <= book.totalPages
+        } else {
+            guard let pagesRead = Int(pagesReadInput) else { return false }
+            return pagesRead > 0 && (book.currentPage + pagesRead) <= book.totalPages
         }
     }
     
     private func saveEntry() {
-        guard let pagesReadInt = Int(pagesRead), pagesReadInt > 0 else { return }
-        
         var updatedBook = book
-        let newCurrentPage = min(book.currentPage + pagesReadInt, book.totalPages)
+        var pagesRead = 0
+        var newCurrentPage = book.currentPage
+        
+        // Calcular las páginas leídas y la página actual
+        if updateMethod == .currentPage {
+            guard let pageNum = Int(currentPageInput), pageNum > book.currentPage, pageNum <= book.totalPages else { return }
+            pagesRead = pageNum - book.currentPage
+            newCurrentPage = pageNum
+        } else {
+            guard let numPages = Int(pagesReadInput), numPages > 0 else { return }
+            pagesRead = numPages
+            newCurrentPage = min(book.currentPage + numPages, book.totalPages)
+        }
+        
+        // Actualizar la página actual
         updatedBook.currentPage = newCurrentPage
         
         // Registrar la entrada en el historial
-        updatedBook.addReadingEntry(date: date, pagesRead: pagesReadInt, currentPage: newCurrentPage)
+        updatedBook.addReadingEntry(date: date, pagesRead: pagesRead, currentPage: newCurrentPage)
         
         // Si llegamos al final del libro, marcar como terminado
         if newCurrentPage == book.totalPages && updatedBook.finishDate == nil {
