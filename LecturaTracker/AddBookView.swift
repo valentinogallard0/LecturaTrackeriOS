@@ -10,6 +10,7 @@ import SwiftUI
 struct AddBookView: View {
     @Environment(\.dismiss) private var dismiss // Para cerrar el modal
     var bookStore: BookStore // Referencia al almacén de libros
+    @EnvironmentObject var themeManager: ThemeManager
     
     @State private var title = ""
     @State private var author = ""
@@ -20,6 +21,7 @@ struct AddBookView: View {
     @State private var showingImageSourceDialog = false // Para mostrar el diálogo de selección
     @State private var startDate = Date() // Fecha de inicio de lectura
     @State private var hasStartedReading = false // Si ya ha comenzado a leer
+    @State private var selectedGenre: BookGenre = .other // Género seleccionado
     
     enum ImageSource {
         case photoLibrary, camera
@@ -33,6 +35,18 @@ struct AddBookView: View {
                     TextField("Autor", text: $author)
                     TextField("Número de páginas", text: $totalPages)
                         .keyboardType(.numberPad)
+                    
+                    // Genre Picker
+                    Picker("Género", selection: $selectedGenre) {
+                        ForEach(BookGenre.allCases, id: \.self) { genre in
+                            HStack {
+                                Image(systemName: genre.iconName)
+                                Text(genre.displayName)
+                            }
+                            .tag(genre)
+                        }
+                    }
+                    .pickerStyle(MenuPickerStyle())
                 }
                 
                 Section(header: Text("Portada del libro")) {
@@ -73,6 +87,23 @@ struct AddBookView: View {
                         .datePickerStyle(DefaultDatePickerStyle())
                     }
                 }
+                
+                // Genre Info Section
+                if selectedGenre != .other {
+                    Section(header: Text("Género seleccionado")) {
+                        HStack {
+                            Image(systemName: selectedGenre.iconName)
+                                .foregroundColor(themeManager.currentTheme.primaryColor)
+                                .frame(width: 25)
+                            
+                            Text(selectedGenre.displayName)
+                                .fontWeight(.medium)
+                            
+                            Spacer()
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
             }
             .navigationTitle("Añadir nuevo libro")
             .navigationBarItems(
@@ -88,7 +119,11 @@ struct AddBookView: View {
                             coverImage: selectedImage, // Usamos la imagen seleccionada
                             currentPage: 0,
                             totalPages: pages,
-                            startDate: hasStartedReading ? startDate : nil // Usamos la fecha seleccionada o nil
+                            startDate: hasStartedReading ? startDate : nil, // Usamos la fecha seleccionada o nil
+                            finishDate: nil,
+                            readingHistory: [],
+                            genre: selectedGenre, // Incluimos el género seleccionado
+                            dateAdded: Date() // Fecha actual como fecha de adición
                         )
                         bookStore.addBook(newBook)
                         dismiss() // Cerramos el modal
@@ -111,5 +146,6 @@ struct AddBookView: View {
                 ImagePicker(selectedImage: $selectedImage, source: imageSource)
             }
         }
+        .accentColor(themeManager.currentTheme.primaryColor)
     }
 }

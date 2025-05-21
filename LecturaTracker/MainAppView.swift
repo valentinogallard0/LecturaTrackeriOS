@@ -11,20 +11,18 @@ struct MainAppView: View {
     // MARK: - Properties
     @StateObject private var bookStore = BookStore()
     @StateObject private var themeManager = ThemeManager()
-    @State private var searchText = ""
+    @State private var filterSettings = FilterSettings()
     @State private var showingAddBookSheet = false
     @State private var showingSettings = false
+    @State private var showingFilters = false
     
     // MARK: - Computed Properties
     var filteredBooks: [Book] {
-        if searchText.isEmpty {
-            return bookStore.books
-        } else {
-            return bookStore.books.filter { book in
-                book.title.localizedCaseInsensitiveContains(searchText) ||
-                book.author.localizedCaseInsensitiveContains(searchText)
-            }
-        }
+        return SearchFilterService.filterAndSortBooks(bookStore.books, with: filterSettings)
+    }
+    
+    var hasActiveFilters: Bool {
+        return filterSettings.hasActiveFilters
     }
     
     // MARK: - Body
@@ -48,17 +46,28 @@ struct MainAppView: View {
                 .navigationTitle("Mis lecturas")
                 .navigationBarTitleDisplayMode(.large)
                 .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        filterButton
+                    }
+                    
                     ToolbarItem(placement: .navigationBarTrailing) {
-                        settingsButton
+                        HStack {
+                            sortButton
+                            settingsButton
+                        }
                     }
                 }
-                .searchable(text: $searchText, prompt: "Buscar Libros")
+                .searchable(text: $filterSettings.searchText, prompt: "Buscar por título, autor o género")
                 .sheet(isPresented: $showingAddBookSheet) {
                     AddBookView(bookStore: bookStore)
                         .environmentObject(themeManager)
                 }
                 .sheet(isPresented: $showingSettings) {
                     SettingsView()
+                        .environmentObject(themeManager)
+                }
+                .sheet(isPresented: $showingFilters) {
+                    SearchFilterView(filterSettings: $filterSettings, bookStore: bookStore)
                         .environmentObject(themeManager)
                 }
             }
@@ -80,6 +89,54 @@ struct MainAppView: View {
         .environmentObject(themeManager)
     }
     
+    // MARK: - Filter Button
+    private var filterButton: some View {
+        Button(action: {
+            showingFilters = true
+        }) {
+            HStack(spacing: 4) {
+                Image(systemName: hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                
+                if hasActiveFilters {
+                    Text("\(getActiveFilterCount())")
+                        .font(.caption)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(themeManager.currentTheme.primaryColor)
+                        .foregroundColor(.white)
+                        .clipShape(Capsule())
+                }
+            }
+            .foregroundColor(themeManager.currentTheme.primaryColor)
+        }
+        .bouncyButton(theme: themeManager.currentTheme)
+    }
+    
+    // MARK: - Sort Button
+    private var sortButton: some View {
+        Menu {
+            ForEach(SortOption.allCases, id: \.self) { option in
+                Button(action: {
+                    withAnimation(.easeInOut) {
+                        filterSettings.sortOption = option
+                    }
+                }) {
+                    HStack {
+                        Text(option.displayName)
+                        
+                        if filterSettings.sortOption == option {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "arrow.up.arrow.down")
+                .foregroundColor(themeManager.currentTheme.primaryColor)
+        }
+        .bouncyButton(theme: themeManager.currentTheme)
+    }
+    
     // MARK: - Settings Button
     private var settingsButton: some View {
         Button(action: {
@@ -93,29 +150,83 @@ struct MainAppView: View {
     
     // MARK: - Books List View
     private var booksList: some View {
-        Group {
-            if filteredBooks.isEmpty {
-                emptyStateView
-            } else {
-                List {
-                    ForEach(Array(filteredBooks.enumerated()), id: \.element.id) { index, book in
-                        NavigationLink(destination: BookDetailView(bookStore: bookStore, book: book)
-                            .environmentObject(themeManager)) {
-                            EnhancedBookRow(book: book, theme: themeManager.currentTheme)
-                        }
-                        .listRowBackground(Color.clear)
-                        .slideIn(delay: Double(index) * 0.1)
+        VStack {
+            // Active Filters Summary
+            if hasActiveFilters {
+                activeFiltersSummary
+            }
+            
+            // Books List
+            Group {
+                if filteredBooks.isEmpty {
+                    if bookStore.books.isEmpty {
+                        emptyLibraryView
+                    } else {
+                        emptyFilterResultsView
                     }
-                    .onDelete(perform: deleteBooks)
+                } else {
+                    List {
+                        ForEach(Array(filteredBooks.enumerated()), id: \.element.id) { index, book in
+                            NavigationLink(destination: BookDetailView(bookStore: bookStore, book: book)
+                                .environmentObject(themeManager)) {
+                                EnhancedBookRow(book: book, theme: themeManager.currentTheme)
+                            }
+                            .listRowBackground(Color.clear)
+                            .slideIn(delay: Double(index) * 0.05)
+                        }
+                        .onDelete(perform: deleteBooks)
+                    }
+                    .listStyle(PlainListStyle())
+                    .background(Color.clear)
                 }
-                .listStyle(PlainListStyle())
-                .background(Color.clear)
             }
         }
     }
     
-    // MARK: - Empty State View
-    private var emptyStateView: some View {
+    // MARK: - Active Filters Summary
+    private var activeFiltersSummary: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                // Clear all filters button
+                Button("Limpiar filtros") {
+                    withAnimation(.easeInOut) {
+                        filterSettings.reset()
+                    }
+                }
+                .font(.caption)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.red.opacity(0.1))
+                .foregroundColor(.red)
+                .cornerRadius(12)
+                
+                // Show active filters
+                if filterSettings.selectedStatus.count < BookStatus.allCases.count {
+                    Text("Estado: \(filterSettings.selectedStatus.count) seleccionados")
+                        .filterChip(theme: themeManager.currentTheme)
+                }
+                
+                if filterSettings.selectedGenres.count < BookGenre.allCases.count {
+                    Text("Género: \(filterSettings.selectedGenres.count) seleccionados")
+                        .filterChip(theme: themeManager.currentTheme)
+                }
+                
+                if !filterSettings.selectedYears.isEmpty {
+                    Text("Años: \(filterSettings.selectedYears.count) seleccionados")
+                        .filterChip(theme: themeManager.currentTheme)
+                }
+                
+                Text("Ordenado: \(filterSettings.sortOption.displayName)")
+                    .filterChip(theme: themeManager.currentTheme)
+            }
+            .padding(.horizontal)
+        }
+        .padding(.vertical, 8)
+        .background(Color(.systemGroupedBackground))
+    }
+    
+    // MARK: - Empty Library View
+    private var emptyLibraryView: some View {
         VStack(spacing: 25) {
             // Animated Icon
             ZStack {
@@ -170,6 +281,35 @@ struct MainAppView: View {
         .themedBackground(themeManager.currentTheme)
     }
     
+    // MARK: - Empty Filter Results View
+    private var emptyFilterResultsView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 50))
+                .foregroundColor(.secondary)
+            
+            Text("No se encontraron libros")
+                .font(.title2)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+            
+            Text("Intenta ajustar tus filtros de búsqueda")
+                .font(.body)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+            
+            Button("Limpiar filtros") {
+                withAnimation(.easeInOut) {
+                    filterSettings.reset()
+                }
+            }
+            .themedButton(themeManager.currentTheme, style: .outlined)
+            .bouncyButton(theme: themeManager.currentTheme)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
     // MARK: - Floating Add Button
     private var floatingAddButton: some View {
         VStack {
@@ -196,8 +336,8 @@ struct MainAppView: View {
                         .clipShape(Circle())
                         .shadow(color: themeManager.currentTheme.primaryColor.opacity(0.3), radius: 15, x: 0, y: 5)
                 }
-                .scaleEffect(filteredBooks.isEmpty ? 0 : 1)
-                .animation(.spring(response: 0.6, dampingFraction: 0.8), value: filteredBooks.isEmpty)
+                .scaleEffect(filteredBooks.isEmpty && bookStore.books.isEmpty ? 0 : 1)
+                .animation(.spring(response: 0.6, dampingFraction: 0.8), value: filteredBooks.isEmpty && bookStore.books.isEmpty)
                 .bouncyButton(theme: themeManager.currentTheme)
                 .padding(.bottom, 20)
                 .padding(.trailing, 20)
@@ -213,10 +353,53 @@ struct MainAppView: View {
         let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
         impactFeedback.impactOccurred()
         
+        // Get the actual books to delete from filtered list
+        let booksToDelete = offsets.map { filteredBooks[$0] }
+        
+        // Find indices in the original books array
+        let originalIndices = IndexSet(booksToDelete.compactMap { bookToDelete in
+            bookStore.books.firstIndex { $0.id == bookToDelete.id }
+        })
+        
         // Animate deletion
         withAnimation(.easeInOut(duration: 0.3)) {
-            bookStore.deleteBook(at: offsets)
+            bookStore.deleteBook(at: originalIndices)
         }
+    }
+    
+    private func getActiveFilterCount() -> Int {
+        var count = 0
+        
+        if filterSettings.selectedStatus.count < BookStatus.allCases.count {
+            count += 1
+        }
+        
+        if filterSettings.selectedGenres.count < BookGenre.allCases.count {
+            count += 1
+        }
+        
+        if !filterSettings.selectedYears.isEmpty {
+            count += 1
+        }
+        
+        if !filterSettings.searchText.isEmpty {
+            count += 1
+        }
+        
+        return count
+    }
+}
+
+// MARK: - Extension for Filter Chip
+extension Text {
+    func filterChip(theme: AppTheme) -> some View {
+        self
+            .font(.caption)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(theme.primaryColor.opacity(0.1))
+            .foregroundColor(theme.primaryColor)
+            .cornerRadius(12)
     }
 }
 
