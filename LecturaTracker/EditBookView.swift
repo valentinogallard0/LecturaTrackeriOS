@@ -197,7 +197,6 @@ struct EditBookView: View {
     private var formContent: some View {
         Form {
             basicInfoSection
-            progressSection
             coverImageSection
             startDateSection
             warningSection
@@ -241,14 +240,7 @@ struct EditBookView: View {
             genrePicker
         }
     }
-    
-    private var progressSection: some View {
-        Section(header: Text("Progreso de lectura")) {
-            totalPagesField
-            currentPageField
-            progressView
-        }
-    }
+
     
     private var coverImageSection: some View {
         Section(header: Text("Portada del libro")) {
@@ -329,50 +321,7 @@ struct EditBookView: View {
         .pickerStyle(MenuPickerStyle())
     }
     
-    private var totalPagesField: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            TextField("Número total de páginas", text: $totalPages)
-                .keyboardType(.numberPad)
-                .onChange(of: totalPages) { _ in validatePages() }
-            
-            if let pagesError = pagesError {
-                Text(pagesError)
-                    .font(.caption)
-                    .foregroundColor(.red)
-            }
-        }
-    }
-    
-    private var currentPageField: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            TextField("Página actual", text: $currentPage)
-                .keyboardType(.numberPad)
-                .onChange(of: currentPage) { _ in validateCurrentPage() }
-            
-            if let currentPageError = currentPageError {
-                Text(currentPageError)
-                    .font(.caption)
-                    .foregroundColor(.red)
-            }
-        }
-    }
-    
-    @ViewBuilder
-    private var progressView: some View {
-        if let current = Int(currentPage), let total = Int(totalPages), total > 0 {
-            let progress = Double(current) / Double(total)
-            HStack {
-                Text("Progreso:")
-                Spacer()
-                Text("\(Int(progress * 100))%")
-                    .foregroundColor(themeManager.currentTheme.primaryColor)
-                    .fontWeight(.semibold)
-            }
-            
-            ProgressView(value: progress)
-                .progressViewStyle(LinearProgressViewStyle(tint: themeManager.currentTheme.primaryColor))
-        }
-    }
+
     
     private var changeImageButton: some View {
         Button(action: {

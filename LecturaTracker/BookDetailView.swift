@@ -155,23 +155,6 @@ struct BookDetailView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
-                
-                // Botón de edición rápida
-                Button(action: {
-                    showingEditBook = true
-                }) {
-                    HStack {
-                        Image(systemName: "pencil")
-                        Text("Editar libro")
-                    }
-                    .font(.caption)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(themeManager.currentTheme.primaryColor.opacity(0.1))
-                    .foregroundColor(themeManager.currentTheme.primaryColor)
-                    .cornerRadius(8)
-                }
-                .padding(.top, 5)
             }
             
             Spacer()

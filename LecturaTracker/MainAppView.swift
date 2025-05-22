@@ -4,6 +4,18 @@
 //
 //  Created by Valentino De Paola Gallardo on 21/05/25.
 //
+//
+//  MainAppView.swift
+//  LecturaTracker
+//
+//  Created by Valentino De Paola Gallardo on 21/05/25.
+//
+//
+//  MainAppView.swift
+//  LecturaTracker
+//
+//  Created by Valentino De Paola Gallardo on 21/05/25.
+//
 
 import SwiftUI
 
@@ -15,6 +27,8 @@ struct MainAppView: View {
     @State private var showingAddBookSheet = false
     @State private var showingSettings = false
     @State private var showingFilters = false
+    @State private var showingDeleteConfirmation = false
+    @State private var bookToDelete: Book?
     
     // MARK: - Computed Properties
     var filteredBooks: [Book] {
@@ -69,6 +83,20 @@ struct MainAppView: View {
                 .sheet(isPresented: $showingFilters) {
                     SearchFilterView(filterSettings: $filterSettings, bookStore: bookStore)
                         .environmentObject(themeManager)
+                }
+                .alert("¿Eliminar libro?", isPresented: $showingDeleteConfirmation) {
+                    Button("Eliminar", role: .destructive) {
+                        if let bookToDelete = bookToDelete {
+                            deleteBook(bookToDelete)
+                        }
+                    }
+                    Button("Cancelar", role: .cancel) {
+                        bookToDelete = nil
+                    }
+                } message: {
+                    if let book = bookToDelete {
+                        Text("Esta acción eliminará permanentemente \"\(book.title)\" y todo su historial de lectura. No se puede deshacer.")
+                    }
                 }
             }
             .tabItem {
@@ -156,30 +184,80 @@ struct MainAppView: View {
                 activeFiltersSummary
             }
             
-            // Books List
-            Group {
-                if filteredBooks.isEmpty {
-                    if bookStore.books.isEmpty {
-                        emptyLibraryView
-                    } else {
-                        emptyFilterResultsView
-                    }
+            // Books List Content
+            booksListContent
+        }
+    }
+    
+    // MARK: - Books List Content
+    private var booksListContent: some View {
+        Group {
+            if filteredBooks.isEmpty {
+                if bookStore.books.isEmpty {
+                    emptyLibraryView
                 } else {
-                    List {
-                        ForEach(Array(filteredBooks.enumerated()), id: \.element.id) { index, book in
-                            NavigationLink(destination: BookDetailView(bookStore: bookStore, book: book)
-                                .environmentObject(themeManager)) {
-                                EnhancedBookRow(book: book, theme: themeManager.currentTheme)
-                            }
-                            .listRowBackground(Color.clear)
-                            .slideIn(delay: Double(index) * 0.05)
-                        }
-                        .onDelete(perform: deleteBooks)
-                    }
-                    .listStyle(PlainListStyle())
-                    .background(Color.clear)
+                    emptyFilterResultsView
                 }
+            } else {
+                booksListWithGestures
             }
+        }
+    }
+    
+    // MARK: - Books List with Gestures
+    private var booksListWithGestures: some View {
+        List {
+            ForEach(Array(filteredBooks.enumerated()), id: \.element.id) { index, book in
+                bookRowWithGestures(book: book, index: index)
+            }
+            .onDelete(perform: deleteBooks)
+        }
+        .listStyle(PlainListStyle())
+        .background(Color.clear)
+    }
+    
+    // MARK: - Individual Book Row with Gestures
+    private func bookRowWithGestures(book: Book, index: Int) -> some View {
+        NavigationLink(destination: BookDetailView(bookStore: bookStore, book: book)
+            .environmentObject(themeManager)) {
+            EnhancedBookRow(book: book, theme: themeManager.currentTheme)
+        }
+        .listRowBackground(Color.clear)
+        .slideIn(delay: Double(index) * 0.05)
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            trailingSwipeActions(for: book)
+        }
+        .contextMenu {
+            contextMenuActions(for: book)
+        }
+    }
+    
+    // MARK: - Swipe Actions
+    @ViewBuilder
+    private func trailingSwipeActions(for book: Book) -> some View {
+        // Eliminar (rojo)
+        Button {
+            confirmDelete(book)
+        } label: {
+            Label("Eliminar", systemImage: "trash")
+        }
+        .tint(.red)
+    }
+    
+    // MARK: - Context Menu Actions
+    @ViewBuilder
+    private func contextMenuActions(for book: Book) -> some View {
+        NavigationLink(destination: EditBookView(bookStore: bookStore, book: book)
+            .environmentObject(themeManager)) {
+            Label("Editar libro", systemImage: "pencil")
+        }
+        
+        Divider()
+        
+        Button(role: .destructive) {
+            confirmDelete(book)
+        } label: {
+            Label("Eliminar libro", systemImage: "trash")
         }
     }
     
@@ -262,20 +340,27 @@ struct MainAppView: View {
                     .fadeIn(delay: 0.6)
             }
             
-            Button(action: {
-                showingAddBookSheet = true
-            }) {
-                HStack {
-                    Image(systemName: "plus")
-                    Text("Añadir primer libro")
+            VStack(spacing: 12) {
+                Button(action: {
+                    showingAddBookSheet = true
+                }) {
+                    HStack {
+                        Image(systemName: "plus")
+                        Text("Añadir primer libro")
+                    }
+                    .font(.headline)
+                    .padding(.horizontal, 30)
+                    .padding(.vertical, 15)
                 }
-                .font(.headline)
-                .padding(.horizontal, 30)
-                .padding(.vertical, 15)
+                .themedButton(themeManager.currentTheme)
+                .bouncyButton(theme: themeManager.currentTheme)
+                .scaleIn(delay: 0.8)
+                
+                Text("💡 Tip: Mantén presionado un libro para más opciones")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fadeIn(delay: 1.0)
             }
-            .themedButton(themeManager.currentTheme)
-            .bouncyButton(theme: themeManager.currentTheme)
-            .scaleIn(delay: 0.8)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .themedBackground(themeManager.currentTheme)
@@ -348,6 +433,32 @@ struct MainAppView: View {
     }
     
     // MARK: - Helper Methods
+    
+    // Confirmar eliminación
+    private func confirmDelete(_ book: Book) {
+        bookToDelete = book
+        showingDeleteConfirmation = true
+        
+        // Feedback háptico de advertencia
+        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+        impactFeedback.impactOccurred()
+    }
+    
+    // Eliminar libro específico
+    private func deleteBook(_ book: Book) {
+        withAnimation(.easeOut(duration: 0.3)) {
+            if let index = bookStore.books.firstIndex(where: { $0.id == book.id }) {
+                bookStore.deleteBook(at: IndexSet(integer: index))
+            }
+        }
+        
+        bookToDelete = nil
+        
+        // Feedback háptico de confirmación
+        let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
+        impactFeedback.impactOccurred()
+    }
+    
     private func deleteBooks(at offsets: IndexSet) {
         // Add haptic feedback
         let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
