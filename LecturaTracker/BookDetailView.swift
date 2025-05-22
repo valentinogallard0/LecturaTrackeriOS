@@ -5,6 +5,7 @@
 //  Created by Valentino De Paola Gallardo on 21/05/25.
 //
 
+
 import SwiftUI
 
 struct BookDetailView: View {
@@ -15,8 +16,10 @@ struct BookDetailView: View {
     @State private var currentPage: Int
     @State private var hasFinished: Bool = false
     @State private var showingUpdateProgress = false
+    @State private var showingEditBook = false // Nuevo estado para mostrar el editor
     @State private var selectedDate: Date? = Date()
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var themeManager: ThemeManager
     
     // MARK: - Initialization
     init(bookStore: BookStore, book: Book) {
@@ -61,6 +64,16 @@ struct BookDetailView: View {
         }
         .navigationTitle("Detalles del libro")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    showingEditBook = true
+                }) {
+                    Image(systemName: "pencil")
+                        .foregroundColor(themeManager.currentTheme.primaryColor)
+                }
+            }
+        }
         .sheet(isPresented: $showingUpdateProgress) {
             UpdateProgressView(
                 currentPage: $currentPage,
@@ -68,6 +81,10 @@ struct BookDetailView: View {
                 hasFinished: $hasFinished,
                 onUpdate: saveProgress
             )
+        }
+        .sheet(isPresented: $showingEditBook) {
+            EditBookView(bookStore: bookStore, book: book)
+                .environmentObject(themeManager)
         }
         .onDisappear {
             saveProgress()
@@ -111,6 +128,15 @@ struct BookDetailView: View {
                     .font(.title3)
                     .foregroundColor(.secondary)
                 
+                // Género del libro
+                HStack {
+                    Image(systemName: book.genre.iconName)
+                        .foregroundColor(themeManager.currentTheme.primaryColor)
+                    Text(book.genre.displayName)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                
                 Spacer()
                     .frame(height: 10)
                 
@@ -129,6 +155,23 @@ struct BookDetailView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
+                
+                // Botón de edición rápida
+                Button(action: {
+                    showingEditBook = true
+                }) {
+                    HStack {
+                        Image(systemName: "pencil")
+                        Text("Editar libro")
+                    }
+                    .font(.caption)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(themeManager.currentTheme.primaryColor.opacity(0.1))
+                    .foregroundColor(themeManager.currentTheme.primaryColor)
+                    .cornerRadius(8)
+                }
+                .padding(.top, 5)
             }
             
             Spacer()
@@ -176,5 +219,6 @@ struct BookDetailView_Previews: PreviewProvider {
                 )
             )
         }
+        .environmentObject(ThemeManager())
     }
 }
